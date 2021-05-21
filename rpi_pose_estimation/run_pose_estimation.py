@@ -31,11 +31,11 @@ import datetime
 import time
 import RPi.GPIO as GPIO
 
-GPIO.setmode(GPIO.BCM)
+#GPIO.setmode(GPIO.BCM)
 #led
-GPIO.setup(4, GPIO.OUT)
+#GPIO.setup(4, GPIO.OUT)
 #button
-GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+#GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
@@ -230,14 +230,18 @@ try:
     while True:
     #if True:
         #make sure LED is off and wait for button press
-        if not led_on and  not GPIO.input(17):
+        #if cv2.waitKey(1) == ord('p') or led_on and not GPIO.input(17):
+        key = input()
+        if key == 'p':
+        #if not led_on and  not GPIO.input(17):
         #if True:
             #timestamp an output directory for each capture
+            print("start")
             outdir = pathlib.Path(args.output_path) / time.strftime('%Y-%m-%d_%H-%M-%S-%Z')
             outdir.mkdir(parents=True)
-            GPIO.output(4, True)
+            #GPIO.output(4, True)
             time.sleep(.1)
-            led_on = True
+            #led_on = True
             f = []
 
             # Initialize frame rate calculation
@@ -247,7 +251,9 @@ try:
             time.sleep(1)
 
             #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
+
             while True:
+            #while cv2.waitkey(33) != ord('q'):
                 print('running loop')
                 # Start timer (for calculating frame rate)
                 t1 = cv2.getTickCount()
@@ -296,11 +302,13 @@ try:
                         cv2.putText(frame_resized, str(i), (x-4, y-4), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 1) # Draw label text
      
                 frame_resized = draw_lines(keypoint_positions, frame_resized, drop_pts)
-
+                
                 # Draw framerate in corner of frame - remove for small image display
                 #cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
                 #cv2.putText(frame_resized,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
-
+                frame_resized = cv2.resize(frame_resized, (640, 480))
+                cv2.imshow('img', frame_resized)
+                
                 # Calculate framerate
                 t2 = cv2.getTickCount()
                 time1 = (t2-t1)/freq
@@ -311,12 +319,13 @@ try:
                 path = str(outdir) + '/'  + str(datetime.datetime.now()) + ".jpg"
 
                 status = cv2.imwrite(path, frame_resized)
-
+                
                 # Press 'q' to quit
                 if cv2.waitKey(1) == ord('q') or led_on and not GPIO.input(17):
+                #if input() == 'q':
                     print(f"Saved images to: {outdir}")
-                    GPIO.output(4, False)
-                    led_on = False
+                    #GPIO.output(4, False)
+                    #led_on = False
                     # Clean up
                     cv2.destroyAllWindows()
                     videostream.stop()
@@ -328,6 +337,6 @@ except KeyboardInterrupt:
     cv2.destroyAllWindows()
     videostream.stop()
     print('Stopped video stream.')
-    GPIO.output(4, False)
-    GPIO.cleanup()
+    #GPIO.output(4, False)
+    #GPIO.cleanup()
     #print(str(sum(f)/len(f)))
