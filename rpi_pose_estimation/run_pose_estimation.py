@@ -3,11 +3,101 @@ import cv2
 import sys
 import numpy as np
 import time
+<<<<<<< HEAD:pose_estimation.py
 try:
+=======
+import RPi.GPIO as GPIO
+
+#GPIO.setmode(GPIO.BCM)
+#led
+#GPIO.setup(4, GPIO.OUT)
+#button
+#GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+
+# Define VideoStream class to handle streaming of video from webcam in separate processing thread
+# Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
+class VideoStream:
+    """Camera object that controls video streaming from the Picamera"""
+    def __init__(self,resolution=(640,480),framerate=30):
+        # Initialize the PiCamera and the camera image stream
+        #breakpoint()
+        
+        self.stream = cv2.VideoCapture(0)
+        print("Camera initiated.")
+        ret = self.stream.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        ret = self.stream.set(3,resolution[0])
+        ret = self.stream.set(4,resolution[1])
+            
+        # Read first frame from the stream
+        (self.grabbed, self.frame) = self.stream.read()
+
+    # Variable to control when the camera is stopped
+        self.stopped = False
+
+    def start(self):
+    # Start the thread that reads frames from the video stream
+        Thread(target=self.update,args=()).start()
+        return self
+
+    def update(self):
+        # Keep looping indefinitely until the thread is stopped
+        while True:
+            # If the camera is stopped, stop the thread
+            if self.stopped:
+                # Close camera resources
+                self.stream.release()
+                return
+
+            # Otherwise, grab the next frame from the stream
+            (self.grabbed, self.frame) = self.stream.read()
+
+    def read(self):
+    # Return the most recent frame
+        return self.frame
+
+    def stop(self):
+    # Indicate that the camera and thread should be stopped
+        self.stopped = True
+
+# Define and parse input arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
+                    required=True)
+parser.add_argument('--graph', help='Name of the .tflite file, if different than detect.tflite',
+                    default='detect.tflite')
+parser.add_argument('--labels', help='Name of the labelmap file, if different than labelmap.txt',
+                    default='labelmap.txt')
+parser.add_argument('--threshold', help='Minimum confidence threshold for displaying detected keypoints (specify between 0 and 1).',
+                    default=0.5)
+parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If the webcam does not support the resolution entered, errors may occur.',
+                    default='1280x720')
+parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
+                    action='store_true')
+parser.add_argument('--output_path', help="Where to save processed imges from pi.",
+                    required=True)
+
+args = parser.parse_args()
+
+MODEL_NAME = args.modeldir
+GRAPH_NAME = args.graph
+LABELMAP_NAME = args.labels
+min_conf_threshold = float(args.threshold)
+resW, resH = args.resolution.split('x')
+imW, imH = int(resW), int(resH)
+use_TPU = args.edgetpu
+
+# Import TensorFlow libraries
+# If tensorflow is not installed, import interpreter from tflite_runtime, else import from regular tensorflow
+# If using Coral Edge TPU, import the load_delegate library
+pkg = importlib.util.find_spec('tensorflow')
+if pkg is None:
+>>>>>>> 58f68bb781a070f6f7a831ce11a5f280c7456797:rpi_pose_estimation/run_pose_estimation.py
     from tflite_runtime.interpreter import Interpreter
 except:
     from tensorflow.lite.python.interpreter import Interpreter
 
+<<<<<<< HEAD:pose_estimation.py
 
 def getKeypoints(probMap, threshold=0.1):
 
@@ -290,3 +380,120 @@ if __name__ == '__main__':
     finally:
 
         print("\n\nFinished\n\n")
+=======
+try:
+    print("Progam started - waiting for button push...")
+    while True:
+    #if True:
+        #make sure LED is off and wait for button press
+        #if cv2.waitKey(1) == ord('p') or led_on and not GPIO.input(17):
+        key = input()
+        if key == 'p':
+        #if not led_on and  not GPIO.input(17):
+        #if True:
+            #timestamp an output directory for each capture
+            print("start")
+            outdir = pathlib.Path(args.output_path) / time.strftime('%Y-%m-%d_%H-%M-%S-%Z')
+            outdir.mkdir(parents=True)
+            #GPIO.output(4, True)
+            time.sleep(.1)
+            #led_on = True
+            f = []
+
+            # Initialize frame rate calculation
+            frame_rate_calc = 1
+            freq = cv2.getTickFrequency()
+            videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
+            time.sleep(1)
+
+            #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
+
+            while True:
+            #while cv2.waitkey(33) != ord('q'):
+                print('running loop')
+                # Start timer (for calculating frame rate)
+                t1 = cv2.getTickCount()
+                
+                # Grab frame from video stream
+                frame1 = videostream.read()
+                # Acquire frame and resize to expected shape [1xHxWx3]
+                frame = frame1.copy()
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                frame_resized = cv2.resize(frame_rgb, (width, height))
+                input_data = np.expand_dims(frame_resized, axis=0)
+                
+                frame_resized = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
+
+                # Normalize pixel values if using a floating model (i.e. if model is non-quantized)
+                if floating_model:
+                    input_data = (np.float32(input_data) - input_mean) / input_std
+
+                # Perform the actual detection by running the model with the image as input
+                interpreter.set_tensor(input_details[0]['index'],input_data)
+                interpreter.invoke()
+                
+                #get y,x positions from heatmap
+                coords = sigmoid_and_argmax2d(output_details, min_conf_threshold)
+                #keep track of keypoints that don't meet threshold
+                drop_pts = list(np.unique(np.where(coords ==0)[0]))
+                #get offets from postions
+                offset_vectors = get_offsets(output_details, coords)
+                #use stide to get coordinates in image coordinates
+                keypoint_positions = coords * output_stride + offset_vectors
+            
+                # Loop over all detections and draw detection box if confidence is above minimum threshold
+                for i in range(len(keypoint_positions)):
+                    #don't draw low confidence points
+                    if i in drop_pts:
+                        continue
+                    # Center coordinates
+                    x = int(keypoint_positions[i][1])
+                    y = int(keypoint_positions[i][0])
+                    center_coordinates = (x, y)
+                    radius = 2
+                    color = (0, 255, 0)
+                    thickness = 2
+                    cv2.circle(frame_resized, center_coordinates, radius, color, thickness)
+                    if debug:
+                        cv2.putText(frame_resized, str(i), (x-4, y-4), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 1) # Draw label text
+     
+                frame_resized = draw_lines(keypoint_positions, frame_resized, drop_pts)
+                
+                # Draw framerate in corner of frame - remove for small image display
+                #cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
+                #cv2.putText(frame_resized,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
+                frame_resized = cv2.resize(frame_resized, (640, 480))
+                cv2.imshow('img', frame_resized)
+                
+                # Calculate framerate
+                t2 = cv2.getTickCount()
+                time1 = (t2-t1)/freq
+                frame_rate_calc= 1/time1
+                f.append(frame_rate_calc)
+    
+                #save image with time stamp to directory
+                path = str(outdir) + '/'  + str(datetime.datetime.now()) + ".jpg"
+
+                status = cv2.imwrite(path, frame_resized)
+                
+                # Press 'q' to quit
+                if cv2.waitKey(1) == ord('q') or led_on and not GPIO.input(17):
+                #if input() == 'q':
+                    print(f"Saved images to: {outdir}")
+                    #GPIO.output(4, False)
+                    #led_on = False
+                    # Clean up
+                    cv2.destroyAllWindows()
+                    videostream.stop()
+                    time.sleep(2)
+                    break
+
+except KeyboardInterrupt:
+    # Clean up
+    cv2.destroyAllWindows()
+    videostream.stop()
+    print('Stopped video stream.')
+    #GPIO.output(4, False)
+    #GPIO.cleanup()
+    #print(str(sum(f)/len(f)))
+>>>>>>> 58f68bb781a070f6f7a831ce11a5f280c7456797:rpi_pose_estimation/run_pose_estimation.py
